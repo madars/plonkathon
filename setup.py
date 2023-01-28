@@ -1,6 +1,6 @@
 from utils import *
 import py_ecc.bn128 as b
-from curve import ec_lincomb, G1Point, G2Point
+from curve import ec_lincomb, G1Point, G2Point, Scalar
 from compiler.program import CommonPreprocessedInput
 from verifier import VerificationKey
 from dataclasses import dataclass
@@ -65,13 +65,29 @@ class Setup(object):
     # Encodes the KZG commitment that evaluates to the given values in the group
     def commit(self, values: Polynomial) -> G1Point:
         assert values.basis == Basis.LAGRANGE
+        poly = values.ifft()
+        return self.commit_monomial(poly)
 
-        # Run inverse FFT to convert values from Lagrange basis to monomial basis
-        # Optional: Check values size does not exceed maximum power setup can handle
-        # Compute linear combination of setup with values
-        return NotImplemented
+    # Encodes the KZG commitment of a polynomial p(x) given in monomial basis.
+    def commit_monomial(self, poly: Polynomial) -> G1Point:
+        assert poly.basis == Basis.MONOMIAL
+        assert len(poly.values) <= len(self.powers_of_x)
+        return ec_lincomb((self.powers_of_x[i], poly.values[i]) for i in range(len(poly.values)))
 
     # Generate the verification key for this program with the given setup
     def verification_key(self, pk: CommonPreprocessedInput) -> VerificationKey:
-        # Create the appropriate VerificationKey object
-        return NotImplemented
+        # see compiler/program.py for structure of pk
+        # see verifier.py for structure of VerificationKey
+        vk = VerificationKey(group_order = b.curve_order,
+                             Qm = self.commit(pk.QM), # [q_M(x)]₁ (commitment to multiplication selector polynomial)
+                             Ql = self.commit(pk.QL), # [q_L(x)]₁ (commitment to left selector polynomial)
+                             Qr = self.commit(pk.QR), # [q_R(x)]₁ (commitment to right selector polynomial)
+                             Qo = self.commit(pk.QO), # [q_O(x)]₁ (commitment to output selector polynomial)
+                             Qc = self.commit(pk.QC), # [q_C(x)]₁ (commitment to constants selector polynomial)
+                             S1 = self.commit(pk.S1), # [S_σ1(x)]₁ (commitment to the first permutation polynomial S_σ1(X))
+                             S2 = self.commit(pk.S2), # [S_σ2(x)]₁ (commitment to the second permutation polynomial S_σ2(X))
+                             S3 = self.commit(pk.S3), # [S_σ3(x)]₁ (commitment to the third permutation polynomial S_σ3(X))
+                             X_2 = self.X2, # [x]₂ = xH, where H is a generator of G_2
+                             w = Scalar.root_of_unity(pk.group_order), # nth root of unity, where n is the program's group order.
+                             )
+        return vk
