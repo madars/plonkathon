@@ -224,8 +224,8 @@ class Prover:
         Z4 = self.fft_expand(self.Z)
 
         # Expand shifted Z(ω) into coset extended Lagrange basis
-        shifted_Z = Polynomial(Z_values[1:] + [Z_values[0]], Basis.LAGRANGE)
-        shifetd_Z4 = self.fft_expand(shited_Z)
+        shifted_Z = Polynomial(self.Z.values[1:] + [self.Z.values[0]], Basis.LAGRANGE)
+        shifted_Z4 = self.fft_expand(shifted_Z)
 
         # Expand permutation polynomials pk.S1, pk.S2, pk.S3 into coset
         # extended Lagrange basis
@@ -261,9 +261,18 @@ class Prover:
         # 3. The permutation accumulator equals 1 at the start point
         #    (Z - 1) * L0 = 0
         #    L0 = Lagrange polynomial, equal at all roots of unity except 1
+        root = Scalar.root_of_unity(group_order)
+        X4 = self.fft_expand(
+            Polynomial([root**i for i in range(group_order)], Basis.LAGRANGE)
+        )
 
         QUOT_big = ((A4*B4*QM4) + (A4*QL4) + (B4*QR4) + (C4*QO4) + PI4 + QC4)
-        QUOT_big += self.alpha * (A4 + self.beta * X + gamma) * 
+        QUOT_big += ((A4 + X4 * self.beta + self.gamma) * (B4 + X4 * (self.beta * Scalar(2)) + self.gamma) * (C4 + X4 * (self.beta * Scalar(3)) + self.gamma) * Z4) * self.alpha
+        # Note that S2 and S3 already incorporate k1, k2
+        QUOT_big -= ((A4 + S14 * self.beta + self.gamma) * (B4 + S24 * self.beta + self.gamma) * (C4 + S34 * self.beta + self.gamma) * shifted_Z4) * self.alpha
+        QUOT_big += (Z4 - Scalar(1)) * L0_big * self.alpha * self.alpha
+
+        QUOT_big /= Z_H4
 
         # Sanity check: QUOT has degree < 3n
         assert (
@@ -274,17 +283,26 @@ class Prover:
 
         # Split up T into T1, T2 and T3 (needed because T has degree 3n - 4, so is
         # too big for the trusted setup)
+        QUOT_monom = self.expanded_evals_to_coeffs(QUOT_big)
+        T1 = Polynomial(QUOT_monom.values[:group_order], Basis.MONOMIAL).fft()
+        T2 = Polynomial(QUOT_monom.values[group_order:2*group_order], Basis.MONOMIAL).fft()
+        T3 = Polynomial(QUOT_monom.values[2*group_order:3*group_order], Basis.MONOMIAL).fft()
 
         # Sanity check that we've computed T1, T2, T3 correctly
         assert (
-            T1.barycentric_eval(fft_cofactor)
-            + T2.barycentric_eval(fft_cofactor) * fft_cofactor**group_order
-            + T3.barycentric_eval(fft_cofactor) * fft_cofactor ** (group_order * 2)
+            T1.barycentric_eval(self.fft_cofactor)
+            + T2.barycentric_eval(self.fft_cofactor) * self.fft_cofactor**group_order
+            + T3.barycentric_eval(self.fft_cofactor) * self.fft_cofactor ** (group_order * 2)
         ) == QUOT_big.values[0]
 
         print("Generated T1, T2, T3 polynomials")
 
         # Compute commitments t_lo_1, t_mid_1, t_hi_1 to T1, T2, T3 polynomials
+
+        # TODO(madars): add randomization
+        t_lo_1 = self.setup.commit(T1)
+        t_mid_1 = self.setup.commit(T2)
+        t_hi_1 = self.setup.commit(T3)
 
         # Return t_lo_1, t_mid_1, t_hi_1
         return Message3(t_lo_1, t_mid_1, t_hi_1)
