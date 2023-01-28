@@ -36,6 +36,7 @@ def ec_mul(pt, coeff):
 # Elliptic curve linear combination. A truly optimized implementation
 # would replace this with a fast lin-comb algo, see https://ethresear.ch/t/7238
 def ec_lincomb(pairs):
+    pairs = list(pairs) # consume a generator
     return lincomb(
         [pt for (pt, _) in pairs],
         [int(n) % b.curve_order for (_, n) in pairs],
