@@ -67,7 +67,7 @@ class Prover:
         self.beta, self.gamma = transcript.round_1(msg_1)
 
         # Round 2
-        msg_2 = self.round_2()
+        msg_2 = self.round_2(witness)
         self.alpha, self.fft_cofactor = transcript.round_2(msg_2)
 
         # Round 3
@@ -136,7 +136,7 @@ class Prover:
         # Return a_1, b_1, c_1
         return Message1(a_1, b_1, c_1)
 
-    def round_2(self) -> Message2:
+    def round_2(self, witness: dict[Optional[str], int]) -> Message2:
         group_order = self.group_order
         setup = self.setup
 
@@ -145,6 +145,59 @@ class Prover:
         #
         # Note the convenience function:
         #       self.rlc(val1, val2) = val_1 + self.beta * val_2 + gamma
+
+        # TODO(madars): add zero-knowledge
+        
+        # according to https://docs.google.com/presentation/d/1aR5dtK5CgypCqHxewX72NDuZBaXwa4Ou2F0SOmKaWgg/edit#slide=id.g2014bbeede9_0_119
+        # H, k1*H and k2*H are indeed cosets
+        # these match invoked values in compiler/utils.py (IMPORTANT: can't change them without modifying the instance map)
+        k1 = 2
+        k2 = 3
+
+        Z_values = [Scalar(1)]
+        wj = Scalar(1)
+        w = Scalar.root_of_unity(group_order)
+
+        d = {}
+        k = [0]
+        def debug(i):
+            if isinstance(i, Scalar):
+                i = i.n
+            if i in d:
+                ans = d[i]
+            else:
+                d[i] = k[0]
+                ans = d[i]
+                k[0] += 1
+            return "val[%d]" % ans
+
+        print(self.pk.S1.values)
+        print(self.pk.S2.values)
+        print(self.pk.S3.values)
+
+        assert(self.pk.S1.basis == Basis.LAGRANGE)
+        assert(self.pk.S2.basis == Basis.LAGRANGE)
+        assert(self.pk.S3.basis == Basis.LAGRANGE)
+        
+        for i, gate in enumerate(self.program.wires()):
+            j = i
+            wj = wj * w
+            print(j, debug(self.pk.S1.values[j]), debug(self.pk.S2.values[j]/2), debug(self.pk.S3.values[j]/3))
+
+            num = self.rlc(witness[gate.L], wj) * self.rlc(witness[gate.R], k1*wj) * self.rlc(witness[gate.O], k2*wj)
+            denom = self.rlc(witness[gate.L], self.pk.S1.values[j]) * self.rlc(witness[gate.R], self.pk.S2.values[j]) * self.rlc(witness[gate.O], self.pk.S3.values[j])
+
+            Z_values.append(Z_values[-1] * num / denom)
+
+        # padding
+        for j in range(len(self.program.wires()), group_order):
+            wj = wj * w
+            print(j, debug(self.pk.S1.values[j]), debug(self.pk.S2.values[j]/2), debug(self.pk.S3.values[j]/3))
+
+            num = self.rlc(0, wj) * self.rlc(0, k1*wj) * self.rlc(0, k2*wj)
+            denom = self.rlc(0, self.pk.S1.values[j]) * self.rlc(0, self.pk.S2.values[j]) * self.rlc(0, self.pk.S3.values[j])
+
+            Z_values.append(Z_values[-1] * num / denom)        
 
         # Check that the last term Z_n = 1
         assert Z_values.pop() == 1
