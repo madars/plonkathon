@@ -147,7 +147,7 @@ class Prover:
         #       self.rlc(val1, val2) = val_1 + self.beta * val_2 + gamma
 
         # TODO(madars): add zero-knowledge
-        
+
         # according to https://docs.google.com/presentation/d/1aR5dtK5CgypCqHxewX72NDuZBaXwa4Ou2F0SOmKaWgg/edit#slide=id.g2014bbeede9_0_119
         # H, k1*H and k2*H are indeed cosets
         # these match invoked values in compiler/utils.py (IMPORTANT: can't change them without modifying the instance map)
@@ -163,7 +163,7 @@ class Prover:
             num = self.rlc(self.A.values[i], wi) * self.rlc(self.B.values[i], k1*wi) * self.rlc(self.C.values[i], k2*wi)
             denom = self.rlc(self.A.values[i], self.pk.S1.values[i]) * self.rlc(self.B.values[i], self.pk.S2.values[i]) * self.rlc(self.C.values[i], self.pk.S3.values[i])
             Z_values.append(Z_values[-1] * num / denom)
-            
+
             wi = wi * w
 
         # Check that the last term Z_n = 1
@@ -221,7 +221,7 @@ class Prover:
 
         # Expand permutation grand product polynomial Z into coset extended
         # Lagrange basis
-        Z4 = self.fft_expand(self.Z)
+        self.Z4 = self.fft_expand(self.Z)
 
         # Expand shifted Z(ω) into coset extended Lagrange basis
         shifted_Z = Polynomial(self.Z.values[1:] + [self.Z.values[0]], Basis.LAGRANGE)
@@ -239,7 +239,7 @@ class Prover:
 
         # Compute L0, the Lagrange basis polynomial that evaluates to 1 at x = 1 = ω^0
         # and 0 at other roots of unity
-        L0 = Polynomial([Scalar(1)] + [Scalar(0)] * (group_order - 1), Basis.LAGRANGE)
+        self.L0 = Polynomial([Scalar(1)] + [Scalar(0)] * (group_order - 1), Basis.LAGRANGE)
 
         # Expand L0 into the coset extended Lagrange basis
         L0_big = self.fft_expand(
@@ -267,10 +267,10 @@ class Prover:
         )
 
         QUOT_big = ((A4*B4*QM4) + (A4*QL4) + (B4*QR4) + (C4*QO4) + PI4 + QC4)
-        QUOT_big += ((A4 + X4 * self.beta + self.gamma) * (B4 + X4 * (self.beta * Scalar(2)) + self.gamma) * (C4 + X4 * (self.beta * Scalar(3)) + self.gamma) * Z4) * self.alpha
+        QUOT_big += ((A4 + X4 * self.beta + self.gamma) * (B4 + X4 * (self.beta * Scalar(2)) + self.gamma) * (C4 + X4 * (self.beta * Scalar(3)) + self.gamma) * self.Z4) * self.alpha
         # Note that S2 and S3 already incorporate k1, k2
         QUOT_big -= ((A4 + S14 * self.beta + self.gamma) * (B4 + S24 * self.beta + self.gamma) * (C4 + S34 * self.beta + self.gamma) * shifted_Z4) * self.alpha
-        QUOT_big += (Z4 - Scalar(1)) * L0_big * self.alpha * self.alpha
+        QUOT_big += (self.Z4 - Scalar(1)) * L0_big * (self.alpha * self.alpha)
 
         QUOT_big /= Z_H4
 
@@ -284,25 +284,25 @@ class Prover:
         # Split up T into T1, T2 and T3 (needed because T has degree 3n - 4, so is
         # too big for the trusted setup)
         QUOT_monom = self.expanded_evals_to_coeffs(QUOT_big)
-        T1 = Polynomial(QUOT_monom.values[:group_order], Basis.MONOMIAL).fft()
-        T2 = Polynomial(QUOT_monom.values[group_order:2*group_order], Basis.MONOMIAL).fft()
-        T3 = Polynomial(QUOT_monom.values[2*group_order:3*group_order], Basis.MONOMIAL).fft()
+        self.T1 = Polynomial(QUOT_monom.values[:group_order], Basis.MONOMIAL).fft()
+        self.T2 = Polynomial(QUOT_monom.values[group_order:2*group_order], Basis.MONOMIAL).fft()
+        self.T3 = Polynomial(QUOT_monom.values[2*group_order:3*group_order], Basis.MONOMIAL).fft()
 
         # Sanity check that we've computed T1, T2, T3 correctly
         assert (
-            T1.barycentric_eval(self.fft_cofactor)
-            + T2.barycentric_eval(self.fft_cofactor) * self.fft_cofactor**group_order
-            + T3.barycentric_eval(self.fft_cofactor) * self.fft_cofactor ** (group_order * 2)
+            self.T1.barycentric_eval(self.fft_cofactor)
+            + self.T2.barycentric_eval(self.fft_cofactor) * self.fft_cofactor**group_order
+            + self.T3.barycentric_eval(self.fft_cofactor) * self.fft_cofactor ** (group_order * 2)
         ) == QUOT_big.values[0]
 
         print("Generated T1, T2, T3 polynomials")
 
         # Compute commitments t_lo_1, t_mid_1, t_hi_1 to T1, T2, T3 polynomials
 
-        # TODO(madars): add randomization
-        t_lo_1 = self.setup.commit(T1)
-        t_mid_1 = self.setup.commit(T2)
-        t_hi_1 = self.setup.commit(T3)
+        # TODO(madars): add randomization; this also affects T1/T2/T3 uses in Round 5
+        t_lo_1 = self.setup.commit(self.T1)
+        t_mid_1 = self.setup.commit(self.T2)
+        t_hi_1 = self.setup.commit(self.T3)
 
         # Return t_lo_1, t_mid_1, t_hi_1
         return Message3(t_lo_1, t_mid_1, t_hi_1)
@@ -316,14 +316,21 @@ class Prover:
         # Compute s1_eval = pk.S1(zeta)
         # Compute s2_eval = pk.S2(zeta)
         # Compute z_shifted_eval = Z(zeta * ω)
+        self.a_eval = self.A.barycentric_eval(self.zeta)
+        self.b_eval = self.B.barycentric_eval(self.zeta)
+        self.c_eval = self.C.barycentric_eval(self.zeta)
+        self.s1_eval = self.pk.S1.barycentric_eval(self.zeta)
+        self.s2_eval = self.pk.S2.barycentric_eval(self.zeta)
+
+        root = Scalar.root_of_unity(self.group_order)
+        self.z_shifted_eval = self.Z.barycentric_eval(self.zeta * root)
 
         # Return a_eval, b_eval, c_eval, s1_eval, s2_eval, z_shifted_eval
-        return Message4(a_eval, b_eval, c_eval, s1_eval, s2_eval, z_shifted_eval)
+        return Message4(self.a_eval, self.b_eval, self.c_eval, self.s1_eval, self.s2_eval, self.z_shifted_eval)
 
     def round_5(self) -> Message5:
         # Evaluate the Lagrange basis polynomial L0 at zeta
         # Evaluate the vanishing polynomial Z_H(X) = X^n - 1 at zeta
-
         # Move T1, T2, T3 into the coset extended Lagrange basis
         # Move pk.QL, pk.QR, pk.QM, pk.QO, pk.QC into the coset extended Lagrange basis
         # Move Z into the coset extended Lagrange basis
@@ -342,11 +349,22 @@ class Prover:
         # it has to be "linear" in the proof items, hence why we can only use each
         # proof item once; any further multiplicands in each term need to be
         # replaced with their evaluations at Z, which do still need to be provided
+        L0_zeta = self.L0.barycentric_eval(self.zeta)
 
+        R = (self.pk.QM * (self.a_eval * self.b_eval) +
+             self.pk.QL * self.a_eval +
+             self.pk.QR * self.b_eval +
+             self.pk.QO * self.c_eval +
+             self.PI.barycentric_eval(self.zeta) +
+             self.pk.QC)
+        R += self.Z * ((self.a_eval + self.beta*self.zeta + self.gamma) * (self.b_eval + self.beta*self.zeta*Scalar(2) + self.gamma) * (self.c_eval + self.beta*self.zeta*Scalar(3) + self.gamma) * self.alpha)
+        R -= (self.pk.S3 * self.beta + self.c_eval + self.gamma)  * ((self.a_eval + self.beta*self.s1_eval + self.gamma) * (self.b_eval + self.beta*self.s2_eval + self.gamma) * self.alpha * self.z_shifted_eval)
+        R += (self.Z - Scalar(1)) * (L0_zeta * self.alpha * self.alpha)
+        R -= (self.T1 + self.T2 * (self.zeta ** self.group_order) + self.T3 * (self.zeta ** (2*self.group_order))) * (self.zeta ** self.group_order - Scalar(1))
         # Commit to R
 
         # Sanity-check R
-        assert R.barycentric_eval(zeta) == 0
+        assert R.barycentric_eval(self.zeta) == 0
 
         print("Generated linearization polynomial R")
 
