@@ -157,7 +157,8 @@ class Prover:
         Z_values = [Scalar(1)]
         wi = Scalar(1)
         w = Scalar.root_of_unity(group_order)
-        
+
+        # NB: this actually computes one extra value that gets removed in the assertion (!)
         for i in range(group_order):
             num = self.rlc(self.A.values[i], wi) * self.rlc(self.B.values[i], k1*wi) * self.rlc(self.C.values[i], k2*wi)
             denom = self.rlc(self.A.values[i], self.pk.S1.values[i]) * self.rlc(self.B.values[i], self.pk.S2.values[i]) * self.rlc(self.C.values[i], self.pk.S3.values[i])
