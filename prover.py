@@ -201,26 +201,45 @@ class Prover:
 
         # List of roots of unity at 4x fineness, i.e. the powers of µ
         # where µ^(4n) = 1
+        roots_of_unity4 = Scalar.roots_of_unity(4 * group_order)
 
         # Using self.fft_expand, move A, B, C into coset extended Lagrange basis
+        A4 = self.fft_expand(self.A)
+        B4 = self.fft_expand(self.B)
+        C4 = self.fft_expand(self.C)
 
         # Expand public inputs polynomial PI into coset extended Lagrange
+        PI4 = self.fft_expand(self.PI)
 
         # Expand selector polynomials pk.QL, pk.QR, pk.QM, pk.QO, pk.QC
         # into the coset extended Lagrange basis
+        QL4 = self.fft_expand(self.pk.QL)
+        QR4 = self.fft_expand(self.pk.QR)
+        QO4 = self.fft_expand(self.pk.QO)
+        QM4 = self.fft_expand(self.pk.QM)
+        QC4 = self.fft_expand(self.pk.QC)
 
         # Expand permutation grand product polynomial Z into coset extended
         # Lagrange basis
+        Z4 = self.fft_expand(self.Z)
 
         # Expand shifted Z(ω) into coset extended Lagrange basis
+        shifted_Z = Polynomial(Z_values[1:] + [Z_values[0]], Basis.LAGRANGE)
+        shifetd_Z4 = self.fft_expand(shited_Z)
 
         # Expand permutation polynomials pk.S1, pk.S2, pk.S3 into coset
         # extended Lagrange basis
+        S14 = self.fft_expand(self.pk.S1)
+        S24 = self.fft_expand(self.pk.S2)
+        S34 = self.fft_expand(self.pk.S3)
 
         # Compute Z_H = X^N - 1, also in evaluation form in the coset
+        # TODO(madars): adapt https://github.com/scipr-lab/libfqfft/blob/master/libfqfft/evaluation_domain/domains/basic_radix2_domain.tcc#L104
+        Z_H4 = Polynomial([Scalar(-1)] + ([Scalar(0)] * (group_order-1)) + [self.fft_cofactor ** group_order] + ([Scalar(0)] * (3*group_order-1)), Basis.MONOMIAL).fft()
 
         # Compute L0, the Lagrange basis polynomial that evaluates to 1 at x = 1 = ω^0
         # and 0 at other roots of unity
+        L0 = Polynomial([Scalar(1)] + [Scalar(0)] * (group_order - 1), Basis.LAGRANGE)
 
         # Expand L0 into the coset extended Lagrange basis
         L0_big = self.fft_expand(
@@ -242,6 +261,9 @@ class Prover:
         # 3. The permutation accumulator equals 1 at the start point
         #    (Z - 1) * L0 = 0
         #    L0 = Lagrange polynomial, equal at all roots of unity except 1
+
+        QUOT_big = ((A4*B4*QM4) + (A4*QL4) + (B4*QR4) + (C4*QO4) + PI4 + QC4)
+        QUOT_big += self.alpha * (A4 + self.beta * X + gamma) * 
 
         # Sanity check: QUOT has degree < 3n
         assert (
