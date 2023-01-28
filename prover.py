@@ -67,7 +67,7 @@ class Prover:
         self.beta, self.gamma = transcript.round_1(msg_1)
 
         # Round 2
-        msg_2 = self.round_2(witness)
+        msg_2 = self.round_2()
         self.alpha, self.fft_cofactor = transcript.round_2(msg_2)
 
         # Round 3
@@ -136,7 +136,7 @@ class Prover:
         # Return a_1, b_1, c_1
         return Message1(a_1, b_1, c_1)
 
-    def round_2(self, witness: dict[Optional[str], int]) -> Message2:
+    def round_2(self) -> Message2:
         group_order = self.group_order
         setup = self.setup
 
@@ -155,52 +155,20 @@ class Prover:
         k2 = 3
 
         Z_values = [Scalar(1)]
-        wj = Scalar(1)
+        wi = Scalar(1)
         w = Scalar.root_of_unity(group_order)
-
-        d = {}
-        k = [0]
-        def debug(i):
-            if isinstance(i, Scalar):
-                i = i.n
-            if i in d:
-                ans = d[i]
-            else:
-                d[i] = k[0]
-                ans = d[i]
-                k[0] += 1
-            return "val[%d]" % ans
-
-        print(self.pk.S1.values)
-        print(self.pk.S2.values)
-        print(self.pk.S3.values)
-
-        assert(self.pk.S1.basis == Basis.LAGRANGE)
-        assert(self.pk.S2.basis == Basis.LAGRANGE)
-        assert(self.pk.S3.basis == Basis.LAGRANGE)
         
-        for i, gate in enumerate(self.program.wires()):
-            j = i
-            wj = wj * w
-            print(j, debug(self.pk.S1.values[j]), debug(self.pk.S2.values[j]/2), debug(self.pk.S3.values[j]/3))
-
-            num = self.rlc(witness[gate.L], wj) * self.rlc(witness[gate.R], k1*wj) * self.rlc(witness[gate.O], k2*wj)
-            denom = self.rlc(witness[gate.L], self.pk.S1.values[j]) * self.rlc(witness[gate.R], self.pk.S2.values[j]) * self.rlc(witness[gate.O], self.pk.S3.values[j])
-
+        for i in range(group_order):
+            num = self.rlc(self.A.values[i], wi) * self.rlc(self.B.values[i], k1*wi) * self.rlc(self.C.values[i], k2*wi)
+            denom = self.rlc(self.A.values[i], self.pk.S1.values[i]) * self.rlc(self.B.values[i], self.pk.S2.values[i]) * self.rlc(self.C.values[i], self.pk.S3.values[i])
             Z_values.append(Z_values[-1] * num / denom)
-
-        # padding
-        for j in range(len(self.program.wires()), group_order):
-            wj = wj * w
-            print(j, debug(self.pk.S1.values[j]), debug(self.pk.S2.values[j]/2), debug(self.pk.S3.values[j]/3))
-
-            num = self.rlc(0, wj) * self.rlc(0, k1*wj) * self.rlc(0, k2*wj)
-            denom = self.rlc(0, self.pk.S1.values[j]) * self.rlc(0, self.pk.S2.values[j]) * self.rlc(0, self.pk.S3.values[j])
-
-            Z_values.append(Z_values[-1] * num / denom)        
+            
+            wi = wi * w
 
         # Check that the last term Z_n = 1
         assert Z_values.pop() == 1
+
+        roots_of_unity = Scalar.roots_of_unity(group_order)
 
         # Sanity-check that Z was computed correctly
         for i in range(group_order):
@@ -218,6 +186,8 @@ class Prover:
 
         # Construct Z, Lagrange interpolation polynomial for Z_values
         # Cpmpute z_1 commitment to Z polynomial
+        self.Z = Polynomial(Z_values, Basis.LAGRANGE)
+        z_1 = self.setup.commit(self.Z)
 
         # Return z_1
         return Message2(z_1)
