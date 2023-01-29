@@ -204,20 +204,20 @@ class Prover:
         roots_of_unity4 = Scalar.roots_of_unity(4 * group_order)
 
         # Using self.fft_expand, move A, B, C into coset extended Lagrange basis
-        A4 = self.fft_expand(self.A)
-        B4 = self.fft_expand(self.B)
-        C4 = self.fft_expand(self.C)
+        self.A4 = self.fft_expand(self.A)
+        self.B4 = self.fft_expand(self.B)
+        self.C4 = self.fft_expand(self.C)
 
         # Expand public inputs polynomial PI into coset extended Lagrange
-        PI4 = self.fft_expand(self.PI)
+        self.PI4 = self.fft_expand(self.PI)
 
         # Expand selector polynomials pk.QL, pk.QR, pk.QM, pk.QO, pk.QC
         # into the coset extended Lagrange basis
-        QL4 = self.fft_expand(self.pk.QL)
-        QR4 = self.fft_expand(self.pk.QR)
-        QO4 = self.fft_expand(self.pk.QO)
-        QM4 = self.fft_expand(self.pk.QM)
-        QC4 = self.fft_expand(self.pk.QC)
+        self.QL4 = self.fft_expand(self.pk.QL)
+        self.QR4 = self.fft_expand(self.pk.QR)
+        self.QO4 = self.fft_expand(self.pk.QO)
+        self.QM4 = self.fft_expand(self.pk.QM)
+        self.QC4 = self.fft_expand(self.pk.QC)
 
         # Expand permutation grand product polynomial Z into coset extended
         # Lagrange basis
@@ -225,27 +225,27 @@ class Prover:
 
         # Expand shifted Z(ω) into coset extended Lagrange basis
         assert self.Z.basis == Basis.LAGRANGE
-        shifted_Z = Polynomial(self.Z.values[1:] + [self.Z.values[0]], Basis.LAGRANGE)
-        shifted_Z4 = self.fft_expand(shifted_Z)
+        self.shifted_Z = Polynomial(self.Z.values[1:] + [self.Z.values[0]], Basis.LAGRANGE)
+        self.shifted_Z4 = self.fft_expand(self.shifted_Z)
 
         # Expand permutation polynomials pk.S1, pk.S2, pk.S3 into coset
         # extended Lagrange basis
-        S14 = self.fft_expand(self.pk.S1)
-        S24 = self.fft_expand(self.pk.S2)
-        S34 = self.fft_expand(self.pk.S3)
+        self.S14 = self.fft_expand(self.pk.S1)
+        self.S24 = self.fft_expand(self.pk.S2)
+        self.S34 = self.fft_expand(self.pk.S3)
 
         # Compute Z_H = X^N - 1, also in evaluation form in the coset
         # TODO(madars): adapt https://github.com/scipr-lab/libfqfft/blob/master/libfqfft/evaluation_domain/domains/basic_radix2_domain.tcc#L104
-        Z_H4 = Polynomial([Scalar(-1)] + ([Scalar(0)] * (group_order-1)) + [self.fft_cofactor ** group_order] + ([Scalar(0)] * (3*group_order-1)), Basis.MONOMIAL).fft()
-        Z_H4_alt = Polynomial([(self.fft_cofactor * root)**group_order - Scalar(1) for root in roots_of_unity4], Basis.LAGRANGE)
-        assert Z_H4 == Z_H4_alt
+        self.Z_H4 = Polynomial([Scalar(-1)] + ([Scalar(0)] * (group_order-1)) + [self.fft_cofactor ** group_order] + ([Scalar(0)] * (3*group_order-1)), Basis.MONOMIAL).fft()
+        self.Z_H4_alt = Polynomial([(self.fft_cofactor * root)**group_order - Scalar(1) for root in roots_of_unity4], Basis.LAGRANGE)
+        assert self.Z_H4 == self.Z_H4_alt
 
         # Compute L0, the Lagrange basis polynomial that evaluates to 1 at x = 1 = ω^0
         # and 0 at other roots of unity
         self.L0 = Polynomial([Scalar(1)] + [Scalar(0)] * (group_order - 1), Basis.LAGRANGE)
 
         # Expand L0 into the coset extended Lagrange basis
-        L0_big = self.fft_expand(
+        self.L0_big = self.fft_expand(
             Polynomial([Scalar(1)] + [Scalar(0)] * (group_order - 1), Basis.LAGRANGE)
         )
 
@@ -265,19 +265,19 @@ class Prover:
         #    (Z - 1) * L0 = 0
         #    L0 = Lagrange polynomial, equal at all roots of unity except 1
         root = Scalar.root_of_unity(group_order)
-        X4 = self.fft_expand(
+        self.X4 = self.fft_expand(
             Polynomial([root**i for i in range(group_order)], Basis.LAGRANGE)
         )
-        X4_alt = Polynomial([self.fft_cofactor*el for el in roots_of_unity4], Basis.LAGRANGE)
-        assert X4 == X4_alt
+        self.X4_alt = Polynomial([self.fft_cofactor*el for el in roots_of_unity4], Basis.LAGRANGE)
+        assert self.X4 == self.X4_alt
 
-        QUOT_big = ((A4*B4*QM4) + (A4*QL4) + (B4*QR4) + (C4*QO4) + PI4 + QC4)
-        QUOT_big += ((A4 + X4 * self.beta + self.gamma) * (B4 + X4 * (self.beta * Scalar(2)) + self.gamma) * (C4 + X4 * (self.beta * Scalar(3)) + self.gamma)) * self.Z4 * self.alpha
+        QUOT_big = ((self.A4*self.B4*self.QM4) + (self.A4*self.QL4) + (self.B4*self.QR4) + (self.C4*self.QO4) + self.PI4 + self.QC4)
+        QUOT_big += ((self.A4 + self.X4 * self.beta + self.gamma) * (self.B4 + self.X4 * (self.beta * Scalar(2)) + self.gamma) * (self.C4 + self.X4 * (self.beta * Scalar(3)) + self.gamma)) * self.Z4 * self.alpha
         # Note that S2 and S3 already incorporate k1, k2
-        QUOT_big -= ((A4 + S14 * self.beta + self.gamma) * (B4 + S24 * self.beta + self.gamma) * (C4 + S34 * self.beta + self.gamma) * shifted_Z4) * self.alpha
-        QUOT_big += (self.Z4 - Scalar(1)) * L0_big * (self.alpha * self.alpha)
+        QUOT_big -= ((self.A4 + self.S14 * self.beta + self.gamma) * (self.B4 + self.S24 * self.beta + self.gamma) * (self.C4 + self.S34 * self.beta + self.gamma) * self.shifted_Z4) * self.alpha
+        QUOT_big += (self.Z4 - Scalar(1)) * self.L0_big * (self.alpha * self.alpha)
 
-        QUOT_big /= Z_H4
+        QUOT_big /= self.Z_H4
 
         # Sanity check: QUOT has degree < 3n
         assert (
@@ -356,8 +356,6 @@ class Prover:
         # replaced with their evaluations at Z, which do still need to be provided
         L0_zeta = self.L0.barycentric_eval(self.zeta)
 
-        # TODO: FIX DEGREE
-
         R = (self.pk.QM * (self.a_eval * self.b_eval) +
              self.pk.QL * self.a_eval +
              self.pk.QR * self.b_eval +
@@ -394,9 +392,9 @@ class Prover:
                (self.pk.S1 - self.s1_eval)*(self.v**4) + (self.pk.S2 - self.s2_eval)*(self.v**5))
         assert W_z.barycentric_eval(self.zeta) == 0 # TODO(madars): upstream this
 
-        W_z_coeffs = W_z.ifft().div_X_minus_root(self.zeta).values
-        assert all(el==0 for el in W_z_coeffs[self.group_order-1:])
-
+        W_z = W_z.ifft().div_X_minus_root(self.zeta)
+        assert all(el==0 for el in W_z.values[self.group_order-1:])
+        
         # Check that degree of W_z is not greater than n
         # TODO(madars): upstream the check that we don't actually need to be operating in extended domain
 
@@ -412,9 +410,8 @@ class Prover:
 
         # Check that degree of W_z is not greater than n
         root = Scalar.root_of_unity(self.group_order)
-        W_zw = (self.Z - self.z_shifted_eval)
-        W_zw_coeffs = W_zw.ifft().div_X_minus_root(self.zeta * root).values
-        assert all(el==0 for el in W_zw_coeffs[self.group_order-1:])
+        W_zw = (self.Z - self.z_shifted_eval).ifft().div_X_minus_root(self.zeta * root)
+        assert all(el==0 for el in W_zw.values[self.group_order-1:])
         # TODO(madars): upstream the same check
         #assert W_zw_coeffs[group_order:] == [0] * (group_order * 3)
 
@@ -422,9 +419,9 @@ class Prover:
         print("Generated final quotient witness polynomials")
 
         # Return W_z_1, W_zw_1
-        W_z_1 = self.setup.commit(W_z)
-        W_zw_1 = self.setup.commit(W_zw)
-        
+        W_z_1 = self.setup.commit(W_z.fft())
+        W_zw_1 = self.setup.commit(W_zw.fft())
+
         return Message5(W_z_1, W_zw_1)
 
     def fft_expand(self, x: Polynomial):
