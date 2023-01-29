@@ -118,6 +118,8 @@ class Polynomial:
                 result_values[i] = self.values[i+1]
             else:
                 result_values[i] = r * result_values[i+1] + self.values[i+1]
+        assert r * result_values[0] + self.values[0] == 0
+
         return Polynomial(result_values, self.basis)
 
     # Convenience method to do FFTs specifically over the subgroup over which

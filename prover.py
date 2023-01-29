@@ -358,7 +358,7 @@ class Prover:
              self.PI.barycentric_eval(self.zeta) +
              self.pk.QC)
         R += self.Z * ((self.a_eval + self.beta*self.zeta + self.gamma) * (self.b_eval + self.beta*self.zeta*Scalar(2) + self.gamma) * (self.c_eval + self.beta*self.zeta*Scalar(3) + self.gamma) * self.alpha)
-        R -= (self.pk.S3 * self.beta + self.c_eval + self.gamma)  * ((self.a_eval + self.beta*self.s1_eval + self.gamma) * (self.b_eval + self.beta*self.s2_eval + self.gamma) * self.alpha * self.z_shifted_eval)
+        R -= (self.pk.S3 * self.beta + self.c_eval + self.gamma) * ((self.a_eval + self.beta*self.s1_eval + self.gamma) * (self.b_eval + self.beta*self.s2_eval + self.gamma) * self.alpha * self.z_shifted_eval)
         R += (self.Z - Scalar(1)) * (L0_zeta * self.alpha * self.alpha)
         R -= (self.T1 + self.T2 * (self.zeta ** self.group_order) + self.T3 * (self.zeta ** (2*self.group_order))) * (self.zeta ** self.group_order - Scalar(1))
         # Commit to R
@@ -388,6 +388,7 @@ class Prover:
         assert W_z.barycentric_eval(self.zeta) == 0 # TODO(madars): upstream this
 
         W_z_coeffs = W_z.ifft().div_X_minus_root(self.zeta).values
+        assert all(el==0 for el in W_z_coeffs[self.group_order-1:])
 
         # Check that degree of W_z is not greater than n
         # TODO(madars): upstream the check that we don't actually need to be operating in extended domain
@@ -406,6 +407,7 @@ class Prover:
         root = Scalar.root_of_unity(self.group_order)
         W_zw = (self.Z - self.z_shifted_eval)
         W_zw_coeffs = W_zw.ifft().div_X_minus_root(self.zeta * root).values
+        assert all(el==0 for el in W_zw_coeffs[self.group_order-1:])
         # TODO(madars): upstream the same check
         #assert W_zw_coeffs[group_order:] == [0] * (group_order * 3)
 
