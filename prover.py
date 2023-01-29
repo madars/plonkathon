@@ -224,6 +224,7 @@ class Prover:
         self.Z4 = self.fft_expand(self.Z)
 
         # Expand shifted Z(ω) into coset extended Lagrange basis
+        assert self.Z.basis == Basis.LAGRANGE
         shifted_Z = Polynomial(self.Z.values[1:] + [self.Z.values[0]], Basis.LAGRANGE)
         shifted_Z4 = self.fft_expand(shifted_Z)
 
@@ -236,6 +237,8 @@ class Prover:
         # Compute Z_H = X^N - 1, also in evaluation form in the coset
         # TODO(madars): adapt https://github.com/scipr-lab/libfqfft/blob/master/libfqfft/evaluation_domain/domains/basic_radix2_domain.tcc#L104
         Z_H4 = Polynomial([Scalar(-1)] + ([Scalar(0)] * (group_order-1)) + [self.fft_cofactor ** group_order] + ([Scalar(0)] * (3*group_order-1)), Basis.MONOMIAL).fft()
+        Z_H4_alt = Polynomial([(self.fft_cofactor * root)**group_order - Scalar(1) for root in roots_of_unity4], Basis.LAGRANGE)
+        assert Z_H4 == Z_H4_alt
 
         # Compute L0, the Lagrange basis polynomial that evaluates to 1 at x = 1 = ω^0
         # and 0 at other roots of unity
@@ -265,9 +268,11 @@ class Prover:
         X4 = self.fft_expand(
             Polynomial([root**i for i in range(group_order)], Basis.LAGRANGE)
         )
+        X4_alt = Polynomial([self.fft_cofactor*el for el in roots_of_unity4], Basis.LAGRANGE)
+        assert X4 == X4_alt
 
         QUOT_big = ((A4*B4*QM4) + (A4*QL4) + (B4*QR4) + (C4*QO4) + PI4 + QC4)
-        QUOT_big += ((A4 + X4 * self.beta + self.gamma) * (B4 + X4 * (self.beta * Scalar(2)) + self.gamma) * (C4 + X4 * (self.beta * Scalar(3)) + self.gamma) * self.Z4) * self.alpha
+        QUOT_big += ((A4 + X4 * self.beta + self.gamma) * (B4 + X4 * (self.beta * Scalar(2)) + self.gamma) * (C4 + X4 * (self.beta * Scalar(3)) + self.gamma)) * self.Z4 * self.alpha
         # Note that S2 and S3 already incorporate k1, k2
         QUOT_big -= ((A4 + S14 * self.beta + self.gamma) * (B4 + S24 * self.beta + self.gamma) * (C4 + S34 * self.beta + self.gamma) * shifted_Z4) * self.alpha
         QUOT_big += (self.Z4 - Scalar(1)) * L0_big * (self.alpha * self.alpha)
@@ -350,6 +355,8 @@ class Prover:
         # proof item once; any further multiplicands in each term need to be
         # replaced with their evaluations at Z, which do still need to be provided
         L0_zeta = self.L0.barycentric_eval(self.zeta)
+
+        # TODO: FIX DEGREE
 
         R = (self.pk.QM * (self.a_eval * self.b_eval) +
              self.pk.QL * self.a_eval +
