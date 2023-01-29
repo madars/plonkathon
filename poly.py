@@ -108,6 +108,18 @@ class Polynomial:
             self.basis,
         )
 
+    def div_X_minus_root(self, r: Scalar):
+        assert self.fft().barycentric_eval(r) == 0
+        assert self.basis == Basis.MONOMIAL
+
+        result_values = [Scalar(0)] * len(self.values)
+        for i in range(len(self.values)-2, -1, -1):
+            if i == len(self.values)-2:
+                result_values[i] = self.values[i+1]
+            else:
+                result_values[i] = r * result_values[i+1] + self.values[i+1]
+        return Polynomial(result_values, self.basis)
+
     # Convenience method to do FFTs specifically over the subgroup over which
     # all of the proofs are operating
     def fft(self, inv=False):

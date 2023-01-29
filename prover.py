@@ -383,9 +383,16 @@ class Prover:
         #   + v**4 * (S1 - s1_eval)
         #   + v**5 * (S2 - s2_eval)
         # ) / (X - zeta)
+        W_z = (R + (self.A - self.a_eval)*self.v + (self.B - self.b_eval)*(self.v**2) + (self.C - self.c_eval)*(self.v**3) +
+               (self.pk.S1 - self.s1_eval)*(self.v**4) + (self.pk.S2 - self.s2_eval)*(self.v**5))
+        assert W_z.barycentric_eval(self.zeta) == 0 # TODO(madars): upstream this
+
+        W_z_coeffs = W_z.ifft().div_X_minus_root(self.zeta).values
 
         # Check that degree of W_z is not greater than n
-        assert W_z_coeffs[group_order:] == [0] * (group_order * 3)
+        # TODO(madars): upstream the check that we don't actually need to be operating in extended domain
+
+        #assert W_z_coeffs[self.group_order:] == [0] * (self.group_order * 3)
 
         # Compute W_z_1 commitment to W_z
 
@@ -396,13 +403,19 @@ class Prover:
         # In other words: Compute W_zw = (Z - z_shifted_eval) / (X - zeta * ω)
 
         # Check that degree of W_z is not greater than n
-        assert W_zw_coeffs[group_order:] == [0] * (group_order * 3)
+        root = Scalar.root_of_unity(self.group_order)
+        W_zw = (self.Z - self.z_shifted_eval)
+        W_zw_coeffs = W_zw.ifft().div_X_minus_root(self.zeta * root).values
+        # TODO(madars): upstream the same check
+        #assert W_zw_coeffs[group_order:] == [0] * (group_order * 3)
 
         # Compute W_z_1 commitment to W_z
-
         print("Generated final quotient witness polynomials")
 
         # Return W_z_1, W_zw_1
+        W_z_1 = self.setup.commit(W_z)
+        W_zw_1 = self.setup.commit(W_zw)
+        
         return Message5(W_z_1, W_zw_1)
 
     def fft_expand(self, x: Polynomial):
